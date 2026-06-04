@@ -483,7 +483,8 @@ function pickNum(l){
 
 function applyReceipt(text){
   // OCRは「合 計」のように文字間に空白が入りやすいので、空白を除いた行で判定する
-  const lines = text.split('\n').map(s=>zen2han(s).replace(/[\s　]+/g,'')).filter(Boolean);
+  // 桁区切りが . や 、 に化けることもあるのでくっつけておく
+  const lines = text.split('\n').map(s=>zen2han(s).replace(/[\s　]+/g,'').replace(/(\d)[.,、](?=\d{3}(?!\d))/g,'$1')).filter(Boolean);
   const whole = lines.join('\n');
   // 日付
   let date = null, m;
@@ -686,14 +687,23 @@ function applyMonthly(text){
   }
   const items = {};
   for(const raw of lines){
-    const l = raw.replace(/(\d),(?=\d)/g,'$1').replace(/[\s　]+/g,'');
+    // 空白除去 → 桁区切り（, . 、 がOCRで混ざりがち）を数字にくっつける
+    const l = raw.replace(/[\s　]+/g,'').replace(/(\d)[.,、](?=\d{3}(?!\d))/g,'$1');
     if(/合計|小計/.test(l)) continue;
     if(/^\d{1,2}[::]\d{2}/.test(l)) continue;            // 時刻っぽい行は無視
-    const mm = l.match(/^(.{1,25}?)[::]?[¥]?(\d{2,7})円?$/);
-    if(!mm) continue;
-    if(!/[^\d,.::¥]/.test(mm[1])) continue;              // 項目名に文字がない行は無視
-    if(/^20\d{2}[年\/]/.test(mm[1])) continue;           // 日付っぽい行は無視
-    items[mm[1]] = (items[mm[1]]||0) + parseInt(mm[2],10);
+    // 行の中で一番うしろの数字のかたまりを金額とみなす（行末のゴミ文字に強い）
+    let m = null, t, re = /\d{2,7}(?!\d)/g;
+    while((t = re.exec(l))) m = t;
+    if(!m) continue;
+    const amount = parseInt(m[0], 10);
+    if(!amount) continue;
+    let name = l.slice(0, m.index)
+      .replace(/^[^ぁ-んァ-ヶー一-龠a-zA-Z0-9]+/,'')     // 先頭のアイコンノイズ除去
+      .replace(/[^ぁ-んァ-ヶー一-龠a-zA-Z0-9]+$/,'');     // 末尾の記号除去
+    if(!name || !/[^\d,.::¥]/.test(name)) continue;       // 名前に文字がない行は無視
+    if(/^20\d{2}[年\/]/.test(name)) continue;             // 日付っぽい行は無視
+    if(name.length > 20) name = name.slice(-20);
+    items[name] = (items[name]||0) + amount;
   }
   const names = Object.keys(items);
   if(!names.length){ toast('金額が読み取れませんでした 🙏 手で入れてね'); return; }
