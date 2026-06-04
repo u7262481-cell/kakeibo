@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>うーままの家計簿 🐰</title>
+<style>
+  :root{
+    --pink:#d8a7b1; --pink-dark:#b9838f; --cream:#faf5f2; --card:#ffffff;
+    --text:#5b4a4f; --sub:#a08a91; --mint:#b3cfc2; --yellow:#e8d9b0;
+    --lav:#cfc3dd; --blue:#bccfdb; --orange:#dfc0ab; --red:#cf8e8e;
+    --shadow:0 4px 14px rgba(185,131,143,.16);
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  body{
+    font-family:"Hiragino Maru Gothic ProN","ヒラギノ丸ゴ ProN W4","Yu Gothic UI",sans-serif;
+    background:var(--cream); color:var(--text); padding-bottom:90px;
+    max-width:560px; margin:0 auto;
+  }
+  header{
+    background:linear-gradient(135deg,#e0bdc5,#d8a7b1);
+    padding:18px 20px 14px; border-radius:0 0 24px 24px;
+    text-align:center; box-shadow:var(--shadow);
+  }
+  header h1{font-size:1.25rem; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.08); letter-spacing:.05em;}
+  header .sub{font-size:.72rem; color:#fff; opacity:.9; margin-top:2px;}
+  main{padding:16px 14px 0;}
+  .page{display:none;}
+  .page.active{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  .card{background:var(--card); border-radius:18px; padding:16px; margin-bottom:14px; box-shadow:var(--shadow);}
+  .card h2{font-size:.95rem; margin-bottom:10px; color:var(--pink-dark);}
+  label.small, .small{font-size:.75rem; color:var(--sub);}
+
+  /* toggles */
+  .toggle{display:flex; gap:8px; margin-bottom:12px;}
+  .toggle button{
+    flex:1; padding:10px 4px; border:2px solid #e9dadd; background:#fff;
+    border-radius:14px; font-size:.9rem; color:var(--sub); cursor:pointer; font-family:inherit;
+  }
+  .toggle button.on{border-color:var(--pink-dark); background:#f5eaec; color:var(--pink-dark); font-weight:bold;}
+  .toggle button.on.pt{border-color:#c7a85e; background:#f7eed8; color:#a3854a;}
+
+  /* category grid */
+  .cats{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px;}
+  .cats button{
+    border:2px solid #e9dadd; background:#fff; border-radius:14px; padding:10px 2px 8px;
+    cursor:pointer; font-family:inherit; color:var(--text);
+  }
+  .cats button .ic{font-size:1.3rem; display:block;}
+  .cats button .nm{font-size:.68rem; display:block; margin-top:3px;}
+  .cats button.on{border-color:var(--pink-dark); background:#f5eaec; font-weight:bold;}
+
+  input[type=number], input[type=date], input[type=text], input[type=month], textarea{
+    width:100%; padding:12px; border:2px solid #e9dadd; border-radius:14px;
+    font-size:1rem; font-family:inherit; color:var(--text); background:#fff; outline:none;
+  }
+  input:focus, textarea:focus{border-color:var(--pink);}
+  .amount-input{font-size:1.6rem !important; text-align:right; font-weight:bold;}
+  .row{display:flex; gap:8px; margin-bottom:10px;}
+  .row > *{flex:1;}
+
+  .btn{
+    display:block; width:100%; padding:14px; border:none; border-radius:16px;
+    background:linear-gradient(135deg,#d8a7b1,#b9838f); color:#fff; font-size:1.05rem;
+    font-weight:bold; cursor:pointer; font-family:inherit; box-shadow:var(--shadow);
+  }
+  .btn:active{transform:scale(.98);}
+  .btn.gray{background:#d9cfd3; box-shadow:none;}
+  .btn.sm{padding:10px; font-size:.85rem; border-radius:12px;}
+
+  .toast{
+    position:fixed; left:50%; bottom:100px; transform:translateX(-50%);
+    background:var(--pink-dark); color:#fff; padding:10px 22px; border-radius:99px;
+    font-size:.9rem; opacity:0; pointer-events:none; transition:opacity .3s; z-index:99;
+    white-space:nowrap; box-shadow:var(--shadow);
+  }
+  .toast.show{opacity:1;}
+
+  /* nav */
+  nav{
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:100%; max-width:560px; display:flex; background:#fff;
+    border-radius:22px 22px 0 0; box-shadow:0 -4px 14px rgba(185,131,143,.14); z-index:50;
+  }
+  nav button{
+    flex:1; border:none; background:none; padding:10px 0 12px; cursor:pointer;
+    font-family:inherit; color:var(--sub); font-size:.65rem;
+  }
+  nav button .ic{font-size:1.35rem; display:block; margin-bottom:2px;}
+  nav button.on{color:var(--pink-dark); font-weight:bold;}
+
+  /* month nav */
+  .month-nav{display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:14px;}
+  .month-nav button{
+    border:none; background:#fff; width:36px; height:36px; border-radius:50%;
+    box-shadow:var(--shadow); cursor:pointer; font-size:1rem; color:var(--pink-dark);
+  }
+  .month-nav .label{font-size:1.05rem; font-weight:bold;}
+
+  /* summary cards */
+  .sum-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;}
+  .sum{background:#fff; border-radius:16px; padding:12px; box-shadow:var(--shadow); text-align:center;}
+  .sum .t{font-size:.7rem; color:var(--sub);}
+  .sum .v{font-size:1.15rem; font-weight:bold; margin-top:3px;}
+  .sum.income .v{color:#6da18d;}
+  .sum.expense .v{color:var(--pink-dark);}
+  .sum.balance .v{color:#7791b3;}
+  .sum.point{background:linear-gradient(135deg,#f7eed8,#ecdcb4);}
+  .sum.point .v{color:#a3854a;}
+
+  /* budget bars */
+  .bud{margin-bottom:12px;}
+  .bud .top{display:flex; justify-content:space-between; font-size:.8rem; margin-bottom:4px;}
+  .bud .bar{height:14px; background:#f0e5e7; border-radius:99px; overflow:hidden;}
+  .bud .fill{height:100%; border-radius:99px; background:linear-gradient(90deg,#b3cfc2,#93bda9); transition:width .4s;}
+  .bud .fill.warn{background:linear-gradient(90deg,#e8d9b0,#dcc382);}
+  .bud .fill.over{background:linear-gradient(90deg,#d8a7b1,#b9838f);}
+  .bud .pct{font-size:.72rem; color:var(--sub);}
+
+  /* history */
+  .day-head{font-size:.78rem; color:var(--sub); margin:14px 4px 6px; font-weight:bold;}
+  .tx{
+    display:flex; align-items:center; gap:10px; background:#fff; border-radius:14px;
+    padding:10px 12px; margin-bottom:6px; box-shadow:0 2px 8px rgba(185,131,143,.1);
+  }
+  .tx .ic{font-size:1.25rem;}
+  .tx .mid{flex:1; min-width:0;}
+  .tx .mid .c{font-size:.85rem; font-weight:bold;}
+  .tx .mid .m{font-size:.72rem; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tx .amt{font-weight:bold; font-size:.95rem;}
+  .tx .amt.in{color:#6da18d;}
+  .tx .amt.pt{color:#a3854a;}
+  .tx .del{border:none; background:none; color:#cdb6bc; font-size:1rem; cursor:pointer; padding:4px;}
+  .badge{font-size:.6rem; background:#f3e7c8; color:#a3854a; border-radius:99px; padding:2px 7px; margin-left:5px; vertical-align:middle;}
+  .empty{text-align:center; color:var(--sub); font-size:.85rem; padding:30px 0;}
+
+  /* settings */
+  .bset{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .bset .nm{flex:0 0 105px; font-size:.85rem;}
+  .bset input{padding:8px 10px; font-size:.9rem;}
+  details{margin-bottom:10px;}
+  summary{cursor:pointer; font-size:.85rem; color:var(--pink-dark); font-weight:bold; padding:4px 0;}
+  .hint{font-size:.72rem; color:var(--sub); line-height:1.6; margin:6px 0;}
+  code{background:#f5e9ec; padding:1px 5px; border-radius:6px; font-size:.72rem;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js" defer></script>
+</head>
+<body>
+
+<header>
+  <h1>🐰 うーままの家計簿 🌸</h1>
+  <div class="sub">レシートでラクラク・ポイントもしっかり管理</div>
+</header>
+
+<main>
+<!-- ============ 入力 ============ -->
+<div class="page active" id="page-input">
+  <div class="toggle" id="modeToggle" style="margin-bottom:12px;">
+    <button data-mode="daily" class="on">✏️ 日々の入力</button>
+    <button data-mode="monthly">📅 月まとめ</button>
+  </div>
+
+  <div id="modeDaily">
+  <div class="card">
+    <div class="toggle" id="typeToggle">
+      <button data-type="expense" class="on">💸 支出</button>
+      <button data-type="income">💰 収入</button>
+    </div>
+
+    <div id="payWrap">
+      <div class="toggle" id="payToggle">
+        <button data-pay="cash" class="on">👛 現金・カード</button>
+        <button data-pay="point">⭐ ポイント払い</button>
+      </div>
+    </div>
+
+    <div class="cats" id="catGrid"></div>
+
+    <div class="row">
+      <input type="date" id="inDate">
+    </div>
+    <div class="row">
+      <input type="number" id="inAmount" class="amount-input" placeholder="0" inputmode="numeric" min="0">
+    </div>
+    <div class="row">
+      <input type="text" id="inMemo" placeholder="メモ（お店の名前など・省略OK）">
+    </div>
+    <div id="ptChip" style="display:none; background:#f7eed8; border-radius:12px; padding:8px 12px; margin-bottom:10px; font-size:.78rem; color:#a3854a;">
+      ⭐ ポイント利用 <b id="ptChipAmt"></b> も同じ項目でいっしょに登録します
+      <button id="ptChipX" style="border:none;background:none;color:#a3854a;cursor:pointer;font-size:.9rem;float:right;">✕</button>
+    </div>
+    <button class="btn" id="addBtn">きろくする ✏️</button>
+    <p class="hint" style="margin-top:8px;">⭐ ポイント払い分は家計の収支には入りません。「ポイントでお得になった額」として集計されます。レシートの一部だけポイント払いのときは、現金分とポイント分を2回に分けて登録してね。</p>
+  </div>
+
+  <div class="card">
+    <h2>📷 レシート読み取り</h2>
+    <p class="hint">レシートの写真をえらぶと、日付・合計・ポイント利用を自動で読み取ってフォームに入れます。あとは項目をえらんで「きろくする」だけ！（初回は読み取りデータの準備で少し時間がかかります）</p>
+    <input type="file" id="ocrFile" accept="image/*" hidden>
+    <button class="btn sm" id="ocrBtn">レシートの写真をえらぶ 📷</button>
+    <div id="ocrProg" style="display:none; margin-top:10px;">
+      <div style="height:10px;background:#f0e5e7;border-radius:99px;overflow:hidden;">
+        <div id="ocrFill" style="height:100%;width:0%;background:linear-gradient(90deg,#d8a7b1,#b9838f);border-radius:99px;transition:width .3s;"></div>
+      </div>
+      <div class="hint" id="ocrMsg" style="text-align:center;">じゅんびちゅう…</div>
+    </div>
+    <div id="ocrResult" class="hint" style="display:none; background:#f5eaec; border-radius:12px; padding:10px 12px; margin-top:10px;"></div>
+    <details style="margin-top:10px;">
+      <summary>📋 テキストでまとめて取り込み</summary>
+      <p class="hint">
+        写真からうまく読み取れないときや、まとめて入力したいときはこちら。1行1件で貼り付けて「取り込む」。<br>
+        形式：<code>日付 項目 金額 メモ</code>（ポイント払いは末尾に<code>ポイント</code>）<br>
+        例：<code>6/4 食費 1280 ○○スーパー</code><br>
+        　　<code>6/4 日用品 540 ドラッグストア ポイント</code>
+      </p>
+      <textarea id="bulkText" rows="4" placeholder="ここに貼り付け"></textarea>
+      <button class="btn sm" id="bulkBtn" style="margin-top:8px;">取り込む 📥</button>
+    </details>
+  </div>
+  </div><!-- /modeDaily -->
+
+  <div id="modeMonthly" style="display:none;">
+  <div class="card">
+    <h2>📅 月まとめ入力（レシーカなど）</h2>
+    <p class="hint">レシーカの<b>月集計画面のスクショ</b>を読み取るか、項目ごとの合計を手で入れてね。同じ月をもう一度登録すると置きかわるので、やり直しも安心。</p>
+    <div class="row">
+      <input type="month" id="moMonth">
+    </div>
+    <input type="file" id="moFile" accept="image/*" hidden>
+    <button class="btn sm" id="moOcrBtn">集計画面のスクショをえらぶ 📷</button>
+    <div id="moProg" style="display:none; margin-top:10px;">
+      <div style="height:10px;background:#f0e5e7;border-radius:99px;overflow:hidden;">
+        <div id="moFill" style="height:100%;width:0%;background:linear-gradient(90deg,#d8a7b1,#b9838f);border-radius:99px;transition:width .3s;"></div>
+      </div>
+      <div class="hint" id="moMsg" style="text-align:center;">じゅんびちゅう…</div>
+    </div>
+    <div id="moRows" style="margin-top:12px;"></div>
+    <button class="btn sm gray" id="moAddRow" style="margin-top:4px;">＋ 行をついか</button>
+    <button class="btn" id="moSaveBtn" style="margin-top:10px;">この月のまとめを登録 📅</button>
+    <p class="hint">⭐ポイント払い分は「日々の入力」から登録してね。</p>
+  </div>
+  </div><!-- /modeMonthly -->
+</div>
+
+<!-- ============ 履歴 ============ -->
+<div class="page" id="page-history">
+  <div class="month-nav">
+    <button onclick="moveMonth(-1)">◀</button>
+    <span class="label" id="histMonthLabel"></span>
+    <button onclick="moveMonth(1)">▶</button>
+  </div>
+  <div id="histList"></div>
+</div>
+
+<!-- ============ レポート ============ -->
+<div class="page" id="page-report">
+  <div class="month-nav">
+    <button onclick="moveMonth(-1)">◀</button>
+    <span class="label" id="repMonthLabel"></span>
+    <button onclick="moveMonth(1)">▶</button>
+  </div>
+
+  <div class="sum-grid">
+    <div class="sum income"><div class="t">💰 収入</div><div class="v" id="sumIncome"></div></div>
+    <div class="sum expense"><div class="t">💸 支出</div><div class="v" id="sumExpense"></div></div>
+    <div class="sum balance"><div class="t">🌱 収支（のこり）</div><div class="v" id="sumBalance"></div></div>
+    <div class="sum point"><div class="t">⭐ ポイントでお得</div><div class="v" id="sumPoint"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>📊 項目べつ（予算との比較）</h2>
+    <div id="budList"></div>
+  </div>
+</div>
+
+<!-- ============ 設定 ============ -->
+<div class="page" id="page-settings">
+  <div class="card">
+    <h2>🎯 項目ごとの予算（月）</h2>
+    <div id="budgetSettings"></div>
+    <button class="btn sm" id="saveBudgetBtn" style="margin-top:6px;">予算をほぞん 💾</button>
+  </div>
+  <div class="card">
+    <h2>📷 スクショ項目の振り分け</h2>
+    <p class="hint">月まとめのスクショで読み取った項目名（レシーカの項目など）を、この家計簿のどの項目に入れるかの対応表です。登録するたびに自動でおぼえます。ここでいつでも直せるよ。</p>
+    <div id="catMapList"></div>
+  </div>
+  <div class="card">
+    <h2>📦 データ</h2>
+    <button class="btn sm" id="csvBtn">CSVでダウンロード（Excel用）⬇️</button>
+    <button class="btn sm gray" id="backupBtn" style="margin-top:8px;">バックアップをコピー 📋</button>
+    <details style="margin-top:10px;">
+      <summary>バックアップから復元</summary>
+      <textarea id="restoreText" rows="3" placeholder="バックアップのテキストを貼り付け"></textarea>
+      <button class="btn sm gray" id="restoreBtn" style="margin-top:8px;">復元する</button>
+    </details>
+    <p class="hint">データはこのブラウザの中に自動保存されます。ときどきバックアップをコピーしてメモなどに残しておくと安心です。</p>
+  </div>
+</div>
+</main>
+
+<nav>
+  <button data-page="input" class="on"><span class="ic">✏️</span>入力</button>
+  <button data-page="history"><span class="ic">📖</span>履歴</button>
+  <button data-page="report"><span class="ic">📊</span>レポート</button>
+  <button data-page="settings"><span class="ic">⚙️</span>設定</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CATS = [
+  {id:'food',    nm:'食費',       ic:'🍙'},
+  {id:'daily',   nm:'日用品',     ic:'🧴'},
+  {id:'eatout',  nm:'外食・おやつ', ic:'🍰'},
+  {id:'trans',   nm:'交通',       ic:'🚌'},
+  {id:'beauty',  nm:'衣服・美容', ic:'👗'},
+  {id:'health',  nm:'医療・健康', ic:'💊'},
+  {id:'leisure', nm:'レジャー',   ic:'🎡'},
+  {id:'other',   nm:'その他',     ic:'📦'},
+];
+const KEY = 'umama-kakeibo-v1';
+
+let db = load();
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if(d && d.tx){ if(!d.catMap) d.catMap = {}; return d; }
+  }catch(e){}
+  return {tx:[], budgets:{}, catMap:{}};
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+function yen(n){ return '¥' + Number(n).toLocaleString(); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function catOf(id){ return CATS.find(c=>c.id===id) || {nm:'その他', ic:'📦'}; }
+
+/* ---------- state ---------- */
+let curType = 'expense', curPay = 'cash', curCat = 'food';
+let viewMonth = new Date().toLocaleDateString('sv-SE').slice(0,7); // YYYY-MM
+
+/* ---------- input page ---------- */
+const catGrid = document.getElementById('catGrid');
+CATS.forEach(c=>{
+  const b = document.createElement('button');
+  b.innerHTML = `<span class="ic">${c.ic}</span><span class="nm">${c.nm}</span>`;
+  b.dataset.cat = c.id;
+  if(c.id===curCat) b.classList.add('on');
+  b.onclick = ()=>{ curCat=c.id; [...catGrid.children].forEach(x=>x.classList.toggle('on', x===b)); };
+  catGrid.appendChild(b);
+});
+
+document.getElementById('inDate').value = new Date().toLocaleDateString('sv-SE');
+
+document.getElementById('typeToggle').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  curType = b.dataset.type;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
+  document.getElementById('payWrap').style.display = curType==='expense' ? '' : 'none';
+  catGrid.style.display = curType==='expense' ? '' : 'none';
+});
+
+document.getElementById('payToggle').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  curPay = b.dataset.pay;
+  [...e.currentTarget.children].forEach(x=>{
+    x.classList.toggle('on', x===b);
+    x.classList.toggle('pt', x===b && curPay==='point');
+  });
+});
+
+document.getElementById('addBtn').onclick = ()=>{
+  const amount = parseInt(document.getElementById('inAmount').value, 10);
+  const date = document.getElementById('inDate').value;
+  const memo = document.getElementById('inMemo').value.trim();
+  if(!date){ toast('日付を入れてね 🗓️'); return; }
+  if(!amount || amount<=0){ toast('金額を入れてね 🙏'); return; }
+  db.tx.push({
+    id:uid(), date,
+    type: curType,
+    cat: curType==='expense' ? curCat : 'income',
+    pay: curType==='expense' ? curPay : 'cash',
+    amount, memo,
+  });
+  let msg = curType==='income' ? '収入をきろくしました 💰' : (curPay==='point' ? 'ポイント払いをきろくしました ⭐' : 'きろくしました ✨');
+  if(pendingPoint>0 && curType==='expense' && curPay==='cash'){
+    db.tx.push({
+      id:uid(), date, type:'expense', cat:curCat, pay:'point',
+      amount: pendingPoint, memo: memo ? memo+'（ポイント分）' : 'ポイント分',
+    });
+    msg = 'ポイント分もいっしょにきろくしました ✨⭐';
+  }
+  pendingPoint = 0; updatePtChip();
+  document.getElementById('ocrResult').style.display = 'none';
+  save();
+  document.getElementById('inAmount').value = '';
+  document.getElementById('inMemo').value = '';
+  toast(msg);
+  render();
+};
+
+/* ---------- receipt OCR ---------- */
+let pendingPoint = 0;
+function updatePtChip(){
+  const chip = document.getElementById('ptChip');
+  if(pendingPoint>0){
+    chip.style.display = '';
+    document.getElementById('ptChipAmt').textContent = yen(pendingPoint);
+  } else chip.style.display = 'none';
+}
+document.getElementById('ptChipX').onclick = ()=>{ pendingPoint=0; updatePtChip(); };
+
+async function runOCR(file, progId, fillId, msgId){
+  const prog = document.getElementById(progId);
+  const fill = document.getElementById(fillId);
+  const msg  = document.getElementById(msgId);
+  prog.style.display=''; fill.style.width='5%'; msg.textContent='じゅんびちゅう…';
+  try{
+    const img = await prepImage(file);
+    const res = await Tesseract.recognize(img, 'jpn', {logger:m=>{
+      if(m.status==='recognizing text'){
+        fill.style.width = (10+m.progress*90)+'%';
+        msg.textContent = 'よみとりちゅう… '+Math.round(m.progress*100)+'%';
+      }
+    }});
+    prog.style.display='none';
+    return res.data.text;
+  }catch(e){
+    prog.style.display='none';
+    return null;
+  }
+}
+
+const ocrFileEl = document.getElementById('ocrFile');
+document.getElementById('ocrBtn').onclick = ()=> ocrFileEl.click();
+ocrFileEl.onchange = async ()=>{
+  const file = ocrFileEl.files[0];
+  if(!file) return;
+  if(typeof Tesseract === 'undefined'){ toast('読み取り機能を準備中…少し待ってもう一度 🙏'); ocrFileEl.value=''; return; }
+  document.getElementById('ocrResult').style.display='none';
+  const text = await runOCR(file, 'ocrProg', 'ocrFill', 'ocrMsg');
+  ocrFileEl.value='';
+  if(text===null){ toast('読み取れませんでした 🙏 手入力かテキスト取り込みをためしてね'); return; }
+  applyReceipt(text);
+};
+
+function prepImage(file){
+  return new Promise((resolve,reject)=>{
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = ()=>{
+      const long = Math.max(im.width, im.height);
+      const sc = long>2000 ? 2000/long : (long<900 ? 2 : 1);
+      const w = Math.round(im.width*sc), h = Math.round(im.height*sc);
+      const cv = document.createElement('canvas'); cv.width=w; cv.height=h;
+      const cx = cv.getContext('2d');
+      cx.drawImage(im, 0, 0, w, h);
+      const d = cx.getImageData(0, 0, w, h);
+      for(let i=0; i<d.data.length; i+=4){
+        const g = d.data[i]*.299 + d.data[i+1]*.587 + d.data[i+2]*.114;
+        d.data[i]=d.data[i+1]=d.data[i+2]=g;
+      }
+      cx.putImageData(d, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(cv);
+    };
+    im.onerror = reject;
+    im.src = url;
+  });
+}
+
+function zen2han(s){
+  return s.replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+          .replace(/，/g, ',').replace(/．/g, '.').replace(/￥/g, '¥')
+          .replace(/／/g, '/').replace(/－/g, '-');
+}
+function pickNum(l){
+  const m = l.match(/[¥]\s?([\d,]+)/) || l.match(/([\d,]+)\s*円/) || l.match(/([\d,]{2,})\s*$/) || l.match(/([\d,]{2,})/);
+  if(!m) return 0;
+  return parseInt(m[1].replace(/,/g,''), 10) || 0;
+}
+
+function applyReceipt(text){
+  // OCRは「合 計」のように文字間に空白が入りやすいので、空白を除いた行で判定する
+  const lines = text.split('\n').map(s=>zen2han(s).replace(/[\s　]+/g,'')).filter(Boolean);
+  const whole = lines.join('\n');
+  // 日付
+  let date = null, m;
+  if(m = whole.match(/(20\d{2})\s?[年\/\.\-]\s?(\d{1,2})\s?[月\/\.\-]\s?(\d{1,2})/)){
+    const mo = +m[2], dy = +m[3];
+    if(mo>=1 && mo<=12 && dy>=1 && dy<=31) date = `${m[1]}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
+  }
+  // 合計
+  let total = 0;
+  for(const l of lines){
+    if(/小計/.test(l)) continue;
+    if(/(合計|ご?請求|領収金?額?|お?買上げ?計)/.test(l)){
+      const n = pickNum(l);
+      if(n > 0){ total = n; if(/合計/.test(l)) break; }
+    }
+  }
+  if(!total){
+    let mx = 0;
+    for(const l of lines){
+      const ms = l.match(/[¥]\s?[\d,]{2,}/g) || [];
+      for(const s of ms){ const n = parseInt(s.replace(/[^\d]/g,''),10); if(n>mx && n<1000000) mx = n; }
+    }
+    total = mx;
+  }
+  // ポイント利用
+  let pt = 0;
+  for(const l of lines){
+    if(/(ポイント|ﾎﾟｲﾝﾄ|point)/i.test(l) && /(利用|支払|値引|充当|払)/.test(l)){
+      const n = pickNum(l.replace(/(ポイント|ﾎﾟｲﾝﾄ)/g,''));
+      if(n>0 && n<=total){ pt = n; break; }
+    }
+  }
+  if(!total){
+    toast('金額が読み取れませんでした 🙏 手入力をおねがいします');
+    return;
+  }
+  // フォームへ反映
+  if(date) document.getElementById('inDate').value = date;
+  document.getElementById('inMemo').value = (lines[0]||'').slice(0,15);
+  if(pt>0 && total-pt<=0){
+    // 全額ポイント払い → ポイント払いモードに切り替え
+    document.querySelector('#payToggle button[data-pay=point]').click();
+    document.getElementById('inAmount').value = pt;
+    pendingPoint = 0;
+  }else{
+    document.querySelector('#payToggle button[data-pay=cash]').click();
+    document.getElementById('inAmount').value = total - pt;
+    pendingPoint = pt;
+  }
+  updatePtChip();
+  const r = document.getElementById('ocrResult');
+  r.innerHTML = `🎀 よみとり結果：合計 <b>${yen(total)}</b>`
+    + (pt ? `（うち⭐ポイント利用 <b>${yen(pt)}</b>・現金分 <b>${yen(total-pt)}</b>）` : '')
+    + (date ? `／${date.replace(/-/g,'/')}` : '')
+    + `<br>あとは<b>項目をえらんで「きろくする」</b>を押すだけ！金額やメモはまちがっていたら直してね。`;
+  r.style.display = '';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* ---------- bulk import ---------- */
+document.getElementById('bulkBtn').onclick = ()=>{
+  const lines = document.getElementById('bulkText').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  let ok=0, ng=[];
+  const year = new Date().getFullYear();
+  for(const line of lines){
+    const t = line.replace(/(\d),(?=\d)/g,'$1').split(/[\s,、]+/).filter(Boolean);
+    if(t.length<3){ ng.push(line); continue; }
+    // date
+    let date=null, m;
+    if(m = t[0].match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/)) date = `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+    else if(m = t[0].match(/^(\d{1,2})[\/\-](\d{1,2})$/)) date = `${year}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+    if(!date){ ng.push(line); continue; }
+    // point flag
+    let isPoint=false;
+    const rest = t.slice(1).filter(w=>{
+      if(/^(ポイント|ﾎﾟｲﾝﾄ|point|P)$/i.test(w)){ isPoint=true; return false; }
+      return true;
+    });
+    // category
+    let catId=null, isIncome=false;
+    const ci = rest.findIndex(w=>{
+      if(/^収入$/.test(w)){ isIncome=true; return true; }
+      return CATS.some(c=>c.nm===w || c.nm.startsWith(w) || w.startsWith(c.nm.split('・')[0]));
+    });
+    if(ci<0){ ng.push(line); continue; }
+    if(!isIncome){
+      const w = rest[ci];
+      const c = CATS.find(c=>c.nm===w) || CATS.find(c=>c.nm.startsWith(w)) || CATS.find(c=>w.startsWith(c.nm.split('・')[0]));
+      catId = c ? c.id : 'other';
+    }
+    rest.splice(ci,1);
+    // amount
+    const ai = rest.findIndex(w=>/^[\d,]+円?$/.test(w));
+    if(ai<0){ ng.push(line); continue; }
+    const amount = parseInt(rest[ai].replace(/[,円]/g,''),10);
+    rest.splice(ai,1);
+    if(!amount || amount<=0){ ng.push(line); continue; }
+    db.tx.push({
+      id:uid(), date,
+      type: isIncome?'income':'expense',
+      cat: isIncome?'income':catId,
+      pay: isPoint?'point':'cash',
+      amount, memo: rest.join(' '),
+    });
+    ok++;
+  }
+  save(); render();
+  document.getElementById('bulkText').value = ng.join('\n');
+  toast(ng.length ? `${ok}件OK・${ng.length}件読めませんでした 🙏` : `${ok}件とりこみました ✨`);
+};
+
+/* ---------- monthly summary (レシーカなど) ---------- */
+document.getElementById('modeToggle').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b));
+  const mo = b.dataset.mode==='monthly';
+  document.getElementById('modeDaily').style.display = mo ? 'none' : '';
+  document.getElementById('modeMonthly').style.display = mo ? '' : 'none';
+});
+
+const MO_KEYS = [
+  [/食|米|パン|弁当|生鮮|惣菜/, 'food'],
+  [/飲料|お酒|アルコール|ドリンク/, 'food'],
+  [/日用|雑貨|消耗|洗剤|文具/, 'daily'],
+  [/外食|カフェ|レストラン|菓子|おやつ|スイーツ|デザート/, 'eatout'],
+  [/交通|ガソリン|電車|バス|駐車/, 'trans'],
+  [/衣|服|美容|化粧|コスメ|ファッション/, 'beauty'],
+  [/医|薬|病院|健康|ヘルス/, 'health'],
+  [/レジャー|娯楽|趣味|本|書籍|おもちゃ|ゲーム|ホビー/, 'leisure'],
+];
+function guessCat(nm){ for(const [re,id] of MO_KEYS){ if(re.test(nm)) return id; } return 'other'; }
+
+const moRows = document.getElementById('moRows');
+function catSelect(catId, width){
+  return `<select style="flex:0 0 ${width}px;padding:8px 4px;border:2px solid #e9dadd;border-radius:12px;font-family:inherit;color:var(--text);background:#fff;font-size:.8rem;">` +
+    CATS.map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.ic} ${c.nm}</option>`).join('') +
+    `</select>`;
+}
+function moRow(catId, amount, label){
+  const d = document.createElement('div');
+  d.className = 'bset';
+  if(label) d.dataset.label = label;
+  d.innerHTML =
+    (label ? `<span class="nm" style="flex:0 0 85px;font-size:.72rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(label)}">${esc(label)}</span>` : '') +
+    catSelect(catId, label ? 112 : 135) +
+    `<input type="number" inputmode="numeric" placeholder="0" value="${amount||''}">` +
+    `<button style="border:none;background:none;color:#cdb6bc;cursor:pointer;font-size:.95rem;">✕</button>`;
+  d.querySelector('button').onclick = ()=> d.remove();
+  moRows.appendChild(d);
+  return d;
+}
+function moInit(){ moRows.innerHTML=''; CATS.forEach(c=>moRow(c.id,'')); }
+moInit();
+document.getElementById('moMonth').value = viewMonth;
+document.getElementById('moAddRow').onclick = ()=> moRow('other','');
+
+const moFileEl = document.getElementById('moFile');
+document.getElementById('moOcrBtn').onclick = ()=> moFileEl.click();
+moFileEl.onchange = async ()=>{
+  const file = moFileEl.files[0];
+  if(!file) return;
+  if(typeof Tesseract === 'undefined'){ toast('読み取り機能を準備中…少し待ってもう一度 🙏'); moFileEl.value=''; return; }
+  const text = await runOCR(file, 'moProg', 'moFill', 'moMsg');
+  moFileEl.value='';
+  if(text===null){ toast('読み取れませんでした 🙏 手入力してね'); return; }
+  applyMonthly(text);
+};
+
+function applyMonthly(text){
+  const lines = text.split('\n').map(s=>zen2han(s).trim()).filter(Boolean);
+  const whole = lines.join('\n');
+  let m;
+  if(m = whole.match(/(20\d{2})\s*[年\/\-]\s*(\d{1,2})\s*月?/)){
+    const mo = +m[2];
+    if(mo>=1 && mo<=12) document.getElementById('moMonth').value = `${m[1]}-${String(mo).padStart(2,'0')}`;
+  }
+  const items = {};
+  for(const raw of lines){
+    const l = raw.replace(/(\d),(?=\d)/g,'$1').replace(/[\s　]+/g,'');
+    if(/合計|小計|ポイント/.test(l)) continue;
+    const mm = l.match(/^([^\d¥]{1,20}?)[::]?[¥]?(\d{2,7})円?$/);
+    if(!mm) continue;
+    items[mm[1]] = (items[mm[1]]||0) + parseInt(mm[2],10);
+  }
+  const names = Object.keys(items);
+  if(!names.length){ toast('金額が読み取れませんでした 🙏 手で入れてね'); return; }
+  // 読み取った項目名ごとに行を作る（おぼえた振り分けがあればそれを優先）
+  moRows.innerHTML = '';
+  names.forEach(nm=> moRow(db.catMap[nm] || guessCat(nm), items[nm], nm));
+  toast(`${names.length}件よみとりました ✨ 振り分けを確認して登録してね`);
+}
+
+document.getElementById('moSaveBtn').onclick = ()=>{
+  const mon = document.getElementById('moMonth').value;
+  if(!mon){ toast('月をえらんでね 🗓️'); return; }
+  const agg = {};
+  [...moRows.children].forEach(r=>{
+    const amount = parseInt(r.querySelector('input').value,10) || 0;
+    if(amount>0){
+      const c = r.querySelector('select').value;
+      agg[c] = (agg[c]||0) + amount;
+      if(r.dataset.label) db.catMap[r.dataset.label] = c; // 振り分けをおぼえる
+    }
+  });
+  if(!Object.keys(agg).length){ toast('金額を入れてね 🙏'); return; }
+  const [y,mo] = mon.split('-');
+  const had = db.tx.some(t=>t.src==='monthly' && t.date.startsWith(mon));
+  if(had && !confirm(`${y}年${Number(mo)}月の月まとめはすでに登録されています。置きかえますか？`)) return;
+  db.tx = db.tx.filter(t=>!(t.src==='monthly' && t.date.startsWith(mon)));
+  for(const [cat,amount] of Object.entries(agg)){
+    db.tx.push({id:uid(), date:mon+'-01', type:'expense', cat, pay:'cash', amount, memo:'月まとめ', src:'monthly'});
+  }
+  save();
+  viewMonth = mon;
+  render();
+  moInit();
+  toast(`${y}年${Number(mo)}月のまとめを登録しました 📅✨`);
+};
+
+/* ---------- nav ---------- */
+document.querySelector('nav').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on', x===b));
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id==='page-'+b.dataset.page));
+  render();
+});
+
+function moveMonth(d){
+  const [y,m] = viewMonth.split('-').map(Number);
+  const dt = new Date(y, m-1+d, 1);
+  viewMonth = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+  render();
+}
+function monthLabel(){ const [y,m]=viewMonth.split('-'); return `${y}年${Number(m)}月`; }
+function txOfMonth(){ return db.tx.filter(t=>t.date.startsWith(viewMonth)); }
+
+/* ---------- history ---------- */
+function renderHistory(){
+  document.getElementById('histMonthLabel').textContent = monthLabel();
+  const list = document.getElementById('histList');
+  const tx = txOfMonth().sort((a,b)=> b.date.localeCompare(a.date) || (b.id>a.id?1:-1));
+  if(!tx.length){ list.innerHTML = '<div class="empty">この月の記録はまだないよ 🌸</div>'; return; }
+  let html='', lastDate='';
+  for(const t of tx){
+    if(t.date!==lastDate){
+      lastDate = t.date;
+      const d = new Date(t.date+'T00:00');
+      html += `<div class="day-head">${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）</div>`;
+    }
+    const isIn = t.type==='income';
+    const c = isIn ? {nm:'収入', ic:'💰'} : catOf(t.cat);
+    const cls = isIn ? 'in' : (t.pay==='point' ? 'pt' : '');
+    const sign = isIn ? '+' : '−';
+    html += `<div class="tx">
+      <span class="ic">${c.ic}</span>
+      <div class="mid">
+        <div class="c">${c.nm}${t.pay==='point' && !isIn ? '<span class="badge">⭐ポイント</span>' : ''}</div>
+        ${t.memo ? `<div class="m">${esc(t.memo)}</div>` : ''}
+      </div>
+      <span class="amt ${cls}">${sign}${yen(t.amount)}</span>
+      <button class="del" onclick="delTx('${t.id}')">🗑</button>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+function delTx(id){
+  if(!confirm('この記録をけしますか？')) return;
+  db.tx = db.tx.filter(t=>t.id!==id);
+  save(); render(); toast('けしました 🗑');
+}
+function esc(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- report ---------- */
+function renderReport(){
+  document.getElementById('repMonthLabel').textContent = monthLabel();
+  const tx = txOfMonth();
+  const income  = tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense = tx.filter(t=>t.type==='expense' && t.pay==='cash').reduce((s,t)=>s+t.amount,0);
+  const point   = tx.filter(t=>t.type==='expense' && t.pay==='point').reduce((s,t)=>s+t.amount,0);
+  document.getElementById('sumIncome').textContent  = yen(income);
+  document.getElementById('sumExpense').textContent = yen(expense);
+  document.getElementById('sumBalance').textContent = (income-expense<0?'−':'') + yen(Math.abs(income-expense));
+  document.getElementById('sumPoint').textContent   = yen(point);
+
+  let html='';
+  for(const c of CATS){
+    const spent = tx.filter(t=>t.type==='expense' && t.pay==='cash' && t.cat===c.id).reduce((s,t)=>s+t.amount,0);
+    const ptSpent = tx.filter(t=>t.type==='expense' && t.pay==='point' && t.cat===c.id).reduce((s,t)=>s+t.amount,0);
+    const bud = db.budgets[c.id] || 0;
+    if(!spent && !ptSpent && !bud) continue;
+    const pct = bud ? Math.min(100, Math.round(spent/bud*100)) : 0;
+    const cls = bud ? (spent>bud ? 'over' : pct>=80 ? 'warn' : '') : '';
+    html += `<div class="bud">
+      <div class="top">
+        <span>${c.ic} ${c.nm}${ptSpent?`<span class="badge">⭐${yen(ptSpent)}</span>`:''}</span>
+        <span><b>${yen(spent)}</b>${bud?` <span class="pct">/ ${yen(bud)}</span>`:''}</span>
+      </div>
+      ${bud?`<div class="bar"><div class="fill ${cls}" style="width:${pct}%"></div></div>
+      <div class="pct" style="text-align:right; margin-top:2px;">${spent>bud?`予算オーバー 💦 (+${yen(spent-bud)})`:`のこり ${yen(bud-spent)}`}</div>`:''}
+    </div>`;
+  }
+  document.getElementById('budList').innerHTML = html || '<div class="empty">この月の支出はまだないよ 🌸</div>';
+}
+
+/* ---------- settings ---------- */
+function renderSettings(){
+  const wrap = document.getElementById('budgetSettings');
+  if(wrap.dataset.built) return;
+  wrap.dataset.built = '1';
+  wrap.innerHTML = CATS.map(c=>`
+    <div class="bset">
+      <span class="nm">${c.ic} ${c.nm}</span>
+      <input type="number" inputmode="numeric" placeholder="未設定" data-bud="${c.id}" value="${db.budgets[c.id]||''}">
+    </div>`).join('');
+}
+document.getElementById('saveBudgetBtn').onclick = ()=>{
+  document.querySelectorAll('[data-bud]').forEach(i=>{
+    const v = parseInt(i.value,10);
+    if(v>0) db.budgets[i.dataset.bud] = v; else delete db.budgets[i.dataset.bud];
+  });
+  save(); toast('予算をほぞんしました 🎯');
+};
+
+document.getElementById('csvBtn').onclick = ()=>{
+  let csv = '﻿日付,種類,項目,支払い,金額,メモ\n';
+  for(const t of [...db.tx].sort((a,b)=>a.date.localeCompare(b.date))){
+    const c = t.type==='income' ? '収入' : catOf(t.cat).nm;
+    csv += `${t.date},${t.type==='income'?'収入':'支出'},${c},${t.pay==='point'?'ポイント':'現金・カード'},${t.amount},"${(t.memo||'').replace(/"/g,'""')}"\n`;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `家計簿_${new Date().toLocaleDateString('sv-SE')}.csv`;
+  a.click();
+  toast('CSVをダウンロードしました ⬇️');
+};
+
+document.getElementById('backupBtn').onclick = async ()=>{
+  try{ await navigator.clipboard.writeText(JSON.stringify(db)); toast('コピーしました 📋'); }
+  catch(e){ prompt('このテキストをコピーして保存してね', JSON.stringify(db)); }
+};
+document.getElementById('restoreBtn').onclick = ()=>{
+  try{
+    const d = JSON.parse(document.getElementById('restoreText').value);
+    if(!d.tx) throw 0;
+    if(!confirm('今のデータを上書きして復元します。いい？')) return;
+    db = d; save(); render();
+    document.getElementById('restoreText').value='';
+    toast('復元しました ✨');
+  }catch(e){ toast('読み取れませんでした 🙏'); }
+};
+
+/* ---------- toast & render ---------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function renderCatMap(){
+  const wrap = document.getElementById('catMapList');
+  const keys = Object.keys(db.catMap||{});
+  if(!keys.length){
+    wrap.innerHTML = '<div class="hint">まだ何もおぼえていません。月まとめを登録すると増えていくよ 🌱</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  keys.sort().forEach(k=>{
+    const d = document.createElement('div');
+    d.className = 'bset';
+    d.innerHTML =
+      `<span class="nm" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(k)}">${esc(k)}</span>` +
+      catSelect(db.catMap[k], 135) +
+      `<button style="border:none;background:none;color:#cdb6bc;cursor:pointer;font-size:.95rem;">✕</button>`;
+    d.querySelector('select').onchange = e=>{ db.catMap[k] = e.target.value; save(); toast('振り分けを変えました ✨'); };
+    d.querySelector('button').onclick = ()=>{ delete db.catMap[k]; save(); renderCatMap(); toast('わすれました 🗑'); };
+    wrap.appendChild(d);
+  });
+}
+function render(){ renderHistory(); renderReport(); renderSettings(); renderCatMap(); }
+render();
+</script>
+</body>
+</html>
