@@ -239,7 +239,7 @@
     <div id="moRows" style="margin-top:12px;"></div>
     <button class="btn sm gray" id="moAddRow" style="margin-top:4px;">＋ 行をついか</button>
     <button class="btn" id="moSaveBtn" style="margin-top:10px;">この月のまとめを登録 📅</button>
-    <p class="hint">⭐ポイント払い分は「日々の入力」から登録してね。</p>
+    <p class="hint">各行の👛/⭐で支払い方法を選べます。⭐ポイント払いにした分は家計の収支に入らず、「ポイントでお得」に集計されます。</p>
   </div>
   </div><!-- /modeMonthly -->
 </div>
@@ -516,27 +516,39 @@ function applyReceipt(text){
       if(n>0 && n<=total){ pt = n; break; }
     }
   }
-  if(!total){
+  // 「無料」と書かれた行 → その金額はポイント払いあつかい
+  let free = 0;
+  for(const l of lines){
+    if(/無料/.test(l) && !/送料/.test(l)){
+      const n = pickNum(l.replace(/無料/g,''));
+      if(n>0 && n<100000) free += n;
+    }
+  }
+  if(!total && !free){
     toast('金額が読み取れませんでした 🙏 手入力をおねがいします');
     return;
   }
+  const cashAmt = Math.max(0, total - pt);
+  const pointAmt = pt + free;
   // フォームへ反映
   if(date) document.getElementById('inDate').value = date;
   document.getElementById('inMemo').value = (lines[0]||'').slice(0,15);
-  if(pt>0 && total-pt<=0){
+  if(cashAmt<=0 && pointAmt>0){
     // 全額ポイント払い → ポイント払いモードに切り替え
     document.querySelector('#payToggle button[data-pay=point]').click();
-    document.getElementById('inAmount').value = pt;
+    document.getElementById('inAmount').value = pointAmt;
     pendingPoint = 0;
   }else{
     document.querySelector('#payToggle button[data-pay=cash]').click();
-    document.getElementById('inAmount').value = total - pt;
-    pendingPoint = pt;
+    document.getElementById('inAmount').value = cashAmt;
+    pendingPoint = pointAmt;
   }
   updatePtChip();
   const r = document.getElementById('ocrResult');
   r.innerHTML = `🎀 よみとり結果：合計 <b>${yen(total)}</b>`
-    + (pt ? `（うち⭐ポイント利用 <b>${yen(pt)}</b>・現金分 <b>${yen(total-pt)}</b>）` : '')
+    + (pt ? `／⭐ポイント利用 <b>${yen(pt)}</b>` : '')
+    + (free ? `／⭐無料分 <b>${yen(free)}</b>` : '')
+    + (pointAmt && cashAmt ? `／👛現金分 <b>${yen(cashAmt)}</b>` : '')
     + (date ? `／${date.replace(/-/g,'/')}` : '')
     + `<br>あとは<b>項目をえらんで「きろくする」</b>を押すだけ！金額やメモはまちがっていたら直してね。`;
   r.style.display = '';
@@ -627,8 +639,11 @@ function moRow(catId, amount, label){
   d.className = 'bset';
   if(label) d.dataset.label = label;
   d.innerHTML =
-    (label ? `<span class="nm" style="flex:0 0 85px;font-size:.72rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(label)}">${esc(label)}</span>` : '') +
-    catSelect(catId, label ? 112 : 135) +
+    (label ? `<span class="nm" style="flex:0 0 78px;font-size:.72rem;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(label)}">${esc(label)}</span>` : '') +
+    catSelect(catId, label ? 100 : 120) +
+    `<select class="pay" title="支払い方法（👛現金・カード／⭐ポイント）" style="flex:0 0 58px;padding:8px 2px;border:2px solid #e9dadd;border-radius:12px;font-family:inherit;color:var(--text);background:#fff;font-size:.8rem;">
+      <option value="cash">👛</option><option value="point">⭐</option>
+    </select>` +
     `<input type="number" inputmode="numeric" placeholder="0" value="${amount||''}">` +
     `<button style="border:none;background:none;color:#cdb6bc;cursor:pointer;font-size:.95rem;">✕</button>`;
   d.querySelector('button').onclick = ()=> d.remove();
@@ -684,7 +699,8 @@ document.getElementById('moSaveBtn').onclick = ()=>{
     const amount = parseInt(r.querySelector('input').value,10) || 0;
     if(amount>0){
       const c = r.querySelector('select').value;
-      agg[c] = (agg[c]||0) + amount;
+      const p = r.querySelector('select.pay').value;
+      agg[c+'|'+p] = (agg[c+'|'+p]||0) + amount;
       if(r.dataset.label) db.catMap[r.dataset.label] = c; // 振り分けをおぼえる
     }
   });
@@ -693,8 +709,9 @@ document.getElementById('moSaveBtn').onclick = ()=>{
   const had = db.tx.some(t=>t.src==='monthly' && t.date.startsWith(mon));
   if(had && !confirm(`${y}年${Number(mo)}月の月まとめはすでに登録されています。置きかえますか？`)) return;
   db.tx = db.tx.filter(t=>!(t.src==='monthly' && t.date.startsWith(mon)));
-  for(const [cat,amount] of Object.entries(agg)){
-    db.tx.push({id:uid(), date:mon+'-01', type:'expense', cat, pay:'cash', amount, memo:'月まとめ', src:'monthly'});
+  for(const [key,amount] of Object.entries(agg)){
+    const [cat,pay] = key.split('|');
+    db.tx.push({id:uid(), date:mon+'-01', type:'expense', cat, pay, amount, memo: pay==='point' ? '月まとめ（ポイント）' : '月まとめ', src:'monthly'});
   }
   save();
   viewMonth = mon;
