@@ -617,16 +617,24 @@ document.getElementById('modeToggle').addEventListener('click', e=>{
 });
 
 const MO_KEYS = [
+  [/外食|カフェ|レストラン|菓子|おやつ|スイーツ|デザート/, 'eatout'],
   [/食|米|パン|弁当|生鮮|惣菜/, 'food'],
   [/飲料|お酒|アルコール|ドリンク/, 'food'],
-  [/日用|雑貨|消耗|洗剤|文具/, 'daily'],
-  [/外食|カフェ|レストラン|菓子|おやつ|スイーツ|デザート/, 'eatout'],
-  [/交通|ガソリン|電車|バス|駐車/, 'trans'],
+  [/日用|雑貨|消耗|洗剤|文具|ウエル活/, 'daily'],
+  [/交通|ガソリン|電車|バス|駐車|自動車|バイク|自転車/, 'trans'],
   [/衣|服|美容|化粧|コスメ|ファッション/, 'beauty'],
-  [/医|薬|病院|健康|ヘルス/, 'health'],
+  [/医|薬|病院|健康|ヘルス|保険/, 'health'],
   [/レジャー|娯楽|趣味|本|書籍|おもちゃ|ゲーム|ホビー/, 'leisure'],
 ];
 function guessCat(nm){ for(const [re,id] of MO_KEYS){ if(re.test(nm)) return id; } return 'other'; }
+// 項目名からポイント払いっぽさを判定（〜無料・ウエル活・ポイ活など）
+function guessPay(nm){ return /無料|ウエル活|ポイ活|ポイント/.test(nm) ? 'point' : 'cash'; }
+// おぼえた振り分け（昔のデータは文字列だけなので吸収する）
+function mapOf(nm){
+  const v = db.catMap[nm];
+  if(!v) return null;
+  return typeof v === 'string' ? {cat:v, pay:'cash'} : v;
+}
 
 const moRows = document.getElementById('moRows');
 function catSelect(catId, width){
@@ -634,7 +642,7 @@ function catSelect(catId, width){
     CATS.map(c=>`<option value="${c.id}"${c.id===catId?' selected':''}>${c.ic} ${c.nm}</option>`).join('') +
     `</select>`;
 }
-function moRow(catId, amount, label){
+function moRow(catId, amount, label, pay){
   const d = document.createElement('div');
   d.className = 'bset';
   if(label) d.dataset.label = label;
@@ -647,6 +655,7 @@ function moRow(catId, amount, label){
     `<input type="number" inputmode="numeric" placeholder="0" value="${amount||''}">` +
     `<button style="border:none;background:none;color:#cdb6bc;cursor:pointer;font-size:.95rem;">✕</button>`;
   d.querySelector('button').onclick = ()=> d.remove();
+  if(pay) d.querySelector('select.pay').value = pay;
   moRows.appendChild(d);
   return d;
 }
@@ -678,17 +687,24 @@ function applyMonthly(text){
   const items = {};
   for(const raw of lines){
     const l = raw.replace(/(\d),(?=\d)/g,'$1').replace(/[\s　]+/g,'');
-    if(/合計|小計|ポイント/.test(l)) continue;
-    const mm = l.match(/^([^\d¥]{1,20}?)[::]?[¥]?(\d{2,7})円?$/);
+    if(/合計|小計/.test(l)) continue;
+    if(/^\d{1,2}[::]\d{2}/.test(l)) continue;            // 時刻っぽい行は無視
+    const mm = l.match(/^(.{1,25}?)[::]?[¥]?(\d{2,7})円?$/);
     if(!mm) continue;
+    if(!/[^\d,.::¥]/.test(mm[1])) continue;              // 項目名に文字がない行は無視
+    if(/^20\d{2}[年\/]/.test(mm[1])) continue;           // 日付っぽい行は無視
     items[mm[1]] = (items[mm[1]]||0) + parseInt(mm[2],10);
   }
   const names = Object.keys(items);
   if(!names.length){ toast('金額が読み取れませんでした 🙏 手で入れてね'); return; }
   // 読み取った項目名ごとに行を作る（おぼえた振り分けがあればそれを優先）
   moRows.innerHTML = '';
-  names.forEach(nm=> moRow(db.catMap[nm] || guessCat(nm), items[nm], nm));
-  toast(`${names.length}件よみとりました ✨ 振り分けを確認して登録してね`);
+  names.forEach(nm=>{
+    const m = mapOf(nm);
+    moRow(m ? m.cat : guessCat(nm), items[nm], nm, m ? m.pay : guessPay(nm));
+  });
+  const ptCnt = [...moRows.children].filter(r=>r.querySelector('select.pay').value==='point').length;
+  toast(`${names.length}件よみとりました ✨${ptCnt?`（うち${ptCnt}件は⭐ポイント払い）`:''} 確認して登録してね`);
 }
 
 document.getElementById('moSaveBtn').onclick = ()=>{
@@ -701,7 +717,7 @@ document.getElementById('moSaveBtn').onclick = ()=>{
       const c = r.querySelector('select').value;
       const p = r.querySelector('select.pay').value;
       agg[c+'|'+p] = (agg[c+'|'+p]||0) + amount;
-      if(r.dataset.label) db.catMap[r.dataset.label] = c; // 振り分けをおぼえる
+      if(r.dataset.label) db.catMap[r.dataset.label] = {cat:c, pay:p}; // 振り分けをおぼえる
     }
   });
   if(!Object.keys(agg).length){ toast('金額を入れてね 🙏'); return; }
@@ -869,13 +885,22 @@ function renderCatMap(){
   }
   wrap.innerHTML = '';
   keys.sort().forEach(k=>{
+    const m = mapOf(k);
     const d = document.createElement('div');
     d.className = 'bset';
     d.innerHTML =
       `<span class="nm" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(k)}">${esc(k)}</span>` +
-      catSelect(db.catMap[k], 135) +
+      catSelect(m.cat, 120) +
+      `<select class="pay" title="支払い方法（👛現金・カード／⭐ポイント）" style="flex:0 0 58px;padding:8px 2px;border:2px solid #e9dadd;border-radius:12px;font-family:inherit;color:var(--text);background:#fff;font-size:.8rem;">
+        <option value="cash"${m.pay!=='point'?' selected':''}>👛</option><option value="point"${m.pay==='point'?' selected':''}>⭐</option>
+      </select>` +
       `<button style="border:none;background:none;color:#cdb6bc;cursor:pointer;font-size:.95rem;">✕</button>`;
-    d.querySelector('select').onchange = e=>{ db.catMap[k] = e.target.value; save(); toast('振り分けを変えました ✨'); };
+    const upd = ()=>{
+      db.catMap[k] = {cat:d.querySelector('select').value, pay:d.querySelector('select.pay').value};
+      save(); toast('振り分けを変えました ✨');
+    };
+    d.querySelector('select').onchange = upd;
+    d.querySelector('select.pay').onchange = upd;
     d.querySelector('button').onclick = ()=>{ delete db.catMap[k]; save(); renderCatMap(); toast('わすれました 🗑'); };
     wrap.appendChild(d);
   });
